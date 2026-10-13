@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control de préstamo</title>
+<style>
+  :root{--bg:#f6f4ef;--card:#fff;--ink:#1f2a37;--muted:#6b7280;--line:#e5e1d8;--accent:#0f766e;--accent2:#115e59;--red:#b91c1c;--green:#15803d}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.4}
+  .wrap{max-width:820px;margin:0 auto;padding:16px}
+  h1{font-size:1.4rem;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:.9rem;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>*{flex:1 1 140px}
+  label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px}
+  input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:1rem;background:#fff;color:var(--ink);font-family:inherit}
+  button{padding:10px 14px;border:0;border-radius:8px;font-size:.95rem;cursor:pointer;background:var(--accent);color:#fff;font-family:inherit}
+  button:hover{background:var(--accent2)}
+  button.sec{background:#e7e5df;color:var(--ink)}
+  button.sec:hover{background:#d9d6cd}
+  button.danger{background:transparent;color:var(--red);padding:4px 8px}
+  button.edit{background:transparent;color:var(--accent);padding:4px 8px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .stat .k{font-size:.75rem;color:var(--muted)}
+  .stat .v{font-size:1.15rem;font-weight:700;margin-top:2px;word-break:break-word}
+  .stat.saldo .v{color:var(--red)}
+  .stat.saldo.zero .v{color:var(--green)}
+  .bar{height:10px;background:#e7e5df;border-radius:6px;overflow:hidden;margin-top:12px}
+  .bar>div{height:100%;background:var(--accent);width:0}
+  .pct{font-size:.8rem;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  td.n,th.n{text-align:right;white-space:nowrap}
+  .pago{color:var(--green)}.prest{color:var(--red)}
+  .empty{color:var(--muted);text-align:center;padding:20px}
+  .tools{display:flex;gap:8px;flex-wrap:wrap}
+  .note{font-size:.8rem;color:var(--muted);margin-top:8px}
+  .printonly{display:none}
+  .scroll{overflow-x:auto}
+  @media print{
+    body{background:#fff}
+    .noprint{display:none!important}
+    .printonly{display:block}
+    .card,.stat{border:1px solid #bbb;box-shadow:none}
+    .wrap{padding:0;max-width:none}
+    .acc{display:none}
+  }
+  .firma{margin-top:48px;display:flex;gap:40px}
+  .firma div{flex:1;border-top:1px solid #444;padding-top:4px;font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Control de préstamo</h1>
+  <div class="sub" id="subtitulo">Registro de dinero prestado y pagos recibidos</div>
+
+  <!-- Datos generales -->
+  <div class="card noprint">
+    <div class="row">
+      <div><label>Nombre de quien debe</label><input id="deudor" placeholder="Ej: Juan Pérez"></div>
+      <div><label>Moneda</label>
+        <select id="moneda"><option value="CRC">₡ Colones</option><option value="USD">$ Dólares</option></select>
+      </div>
+    </div>
+    <div style="margin-top:10px"><label>Nota general (opcional)</label>
+      <input id="notaGeneral" placeholder="Ej: Préstamo sin intereses, pago flexible"></div>
+  </div>
+
+  <!-- Resumen -->
+  <div class="stats">
+    <div class="stat"><div class="k">Total prestado</div><div class="v" id="sPrestado">0</div></div>
+    <div class="stat"><div class="k">Pagos recibidos</div><div class="v" id="sPagado">0</div></div>
+    <div class="stat saldo" id="boxSaldo"><div class="k">Saldo pendiente</div><div class="v" id="sSaldo">0</div></div>
+  </div>
+  <div class="bar"><div id="barra"></div></div>
+  <div class="pct" id="pct"></div>
+
+  <!-- Formulario -->
+  <div class="card noprint" style="margin-top:14px">
+    <strong id="tituloForm">Agregar movimiento</strong>
+    <div class="row" style="margin-top:10px">
+      <div><label>Tipo</label>
+        <select id="tipo"><option value="pago">Pago recibido</option><option value="prestamo">Préstamo (dinero entregado)</option></select>
+      </div>
+      <div><label>Fecha</label><input type="date" id="fecha"></div>
+      <div><label>Monto</label><input type="number" id="monto" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+    </div>
+    <div style="margin-top:10px"><label>Detalle (opcional)</label><input id="detalle" placeholder="Ej: Transferencia SINPE, efectivo…"></div>
+    <div class="tools" style="margin-top:12px">
+      <button id="btnGuardar">Guardar</button>
+      <button class="sec" id="btnCancelar" style="display:none">Cancelar edición</button>
+    </div>
+  </div>
+
+  <!-- Historial -->
+  <div class="card">
+    <div class="printonly" style="margin-bottom:10px">
+      <strong style="font-size:1.1rem">Estado de cuenta de préstamo</strong><br>
+      <span id="pDeudor"></span><br>
+      <span id="pFecha"></span>
+    </div>
+    <strong class="noprint">Historial</strong>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Fecha</th><th>Detalle</th><th class="n">Préstamo</th><th class="n">Pago</th><th class="n">Saldo</th><th class="acc noprint"></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    </div>
+    <div class="firma printonly"><div>Acreedor</div><div>Deudor</div></div>
+  </div>
+
+  <!-- Herramientas -->
+  <div class="card noprint">
+    <strong>Herramientas</strong>
+    <div class="tools" style="margin-top:10px">
+      <button id="btnPdf">Generar PDF</button>
+      <button class="sec" id="btnResp">Descargar respaldo</button>
+      <button class="sec" id="btnRest">Restaurar respaldo</button>
+      <input type="file" id="fileRest" accept="application/json" style="display:none">
+    </div>
+    <div class="note">
+      Los datos se guardan en este navegador. Descarga un respaldo de vez en cuando (y guárdalo en tu correo o Drive)
+      para no perder nada si borras los datos del navegador o cambias de teléfono.
+      Para el PDF: toca <b>Generar PDF</b> y en la ventana de impresión elige <b>Guardar como PDF</b>.
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var KEY = 'controlPrestamo_v1';
+  var estado = { deudor:'', moneda:'CRC', notaGeneral:'', movs:[] };
+  var editId = null;
+  var $ = function(id){return document.getElementById(id)};
+
+  function cargar(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){ var o = JSON.parse(raw); if(o && Array.isArray(o.movs)) estado = o; }
+    }catch(e){}
+  }
+  function guardar(){
+    try{ localStorage.setItem(KEY, JSON.stringify(estado)); }catch(e){
+      alert('No se pudo guardar en el navegador. Descarga un respaldo.');
+    }
+  }
+  function hoy(){
+    var d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function fmt(n){
+    var sym = estado.moneda==='USD' ? '$' : '₡';
+    return sym + ' ' + Number(n).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function fmtFecha(s){
+    if(!s) return '';
+    var p = s.split('-'); return p[2]+'/'+p[1]+'/'+p[0];
+  }
+  function esc(s){
+    return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]});
+  }
+
+  function render(){
+    $('deudor').value = estado.deudor;
+    $('moneda').value = estado.moneda;
+    $('notaGeneral').value = estado.notaGeneral;
+
+    var movs = estado.movs.slice().sort(function(a,b){
+      return a.fecha===b.fecha ? a.id-b.id : (a.fecha<b.fecha?-1:1);
+    });
+    var prestado=0, pagado=0, saldo=0, html='';
+    movs.forEach(function(m){
+      if(m.tipo==='prestamo'){ prestado+=m.monto; saldo+=m.monto; }
+      else { pagado+=m.monto; saldo-=m.monto; }
+      html += '<tr>'+
+        '<td>'+fmtFecha(m.fecha)+'</td>'+
+        '<td>'+esc(m.detalle || (m.tipo==='pago'?'Pago':'Préstamo'))+'</td>'+
+        '<td class="n prest">'+(m.tipo==='prestamo'?fmt(m.monto):'')+'</td>'+
+        '<td class="n pago">'+(m.tipo==='pago'?fmt(m.monto):'')+'</td>'+
+        '<td class="n"><b>'+fmt(saldo)+'</b></td>'+
+        '<td class="n acc noprint"><button class="edit" data-e="'+m.id+'">Editar</button><button class="danger" data-d="'+m.id+'">Borrar</button></td>'+
+        '</tr>';
+    });
+    $('tbody').innerHTML = html || '<tr><td colspan="6" class="empty">Aún no hay movimientos. Registra el préstamo inicial arriba.</td></tr>';
+
+    $('sPrestado').textContent = fmt(prestado);
+    $('sPagado').textContent = fmt(pagado);
+    $('sSaldo').textContent = fmt(saldo);
+    $('boxSaldo').classList.toggle('zero', saldo<=0 && prestado>0);
+
+    var pct = prestado>0 ? Math.min(100, Math.max(0, pagado/prestado*100)) : 0;
+    $('barra').style.width = pct+'%';
+    $('pct').textContent = prestado>0 ? pct.toFixed(1)+'% pagado' + (saldo<=0?' — deuda saldada':'') : '';
+
+    var nombre = estado.deudor ? estado.deudor : 'Sin nombre';
+    $('subtitulo').textContent = estado.deudor ? 'Préstamo a ' + estado.deudor : 'Registro de dinero prestado y pagos recibidos';
+    $('pDeudor').textContent = 'Deudor: ' + nombre + (estado.notaGeneral ? ' — ' + estado.notaGeneral : '');
+    $('pFecha').textContent = 'Generado el ' + fmtFecha(hoy()) + ' · Saldo pendiente: ' + fmt(saldo);
+  }
+
+  function limpiarForm(){
+    editId = null;
+    $('tipo').value='pago'; $('fecha').value=hoy(); $('monto').value=''; $('detalle').value='';
+    $('tituloForm').textContent='Agregar movimiento';
+    $('btnGuardar').textContent='Guardar';
+    $('btnCancelar').style.display='none';
+  }
+
+  $('deudor').addEventListener('input',function(){estado.deudor=this.value;guardar();render();$('deudor').focus();});
+  $('notaGeneral').addEventListener('input',function(){estado.notaGeneral=this.value;guardar();$('pDeudor').textContent='Deudor: '+(estado.deudor||'Sin nombre')+(estado.notaGeneral?' — '+estado.notaGeneral:'');});
+  $('moneda').addEventListener('change',function(){estado.moneda=this.value;guardar();render();});
+
+  $('btnGuardar').addEventListener('click',function(){
+    var monto = parseFloat($('monto').value);
+    var fecha = $('fecha').value;
+    if(!fecha){alert('Indica la fecha.');return;}
+    if(!(monto>0)){alert('Indica un monto mayor a cero.');return;}
+    var datos = {tipo:$('tipo').value,fecha:fecha,monto:Math.round(monto*100)/100,detalle:$('detalle').value.trim()};
+    if(editId!==null){
+      var m = estado.movs.find(function(x){return x.id===editId});
+      if(m) Object.assign(m,datos);
+    } else {
+      datos.id = Date.now();
+      estado.movs.push(datos);
+    }
+    guardar(); limpiarForm(); render();
+  });
+  $('btnCancelar').addEventListener('click',limpiarForm);
+
+  $('tbody').addEventListener('click',function(e){
+    var d = e.target.getAttribute('data-d'), ed = e.target.getAttribute('data-e');
+    if(d){
+      if(confirm('¿Borrar este movimiento?')){
+        estado.movs = estado.movs.filter(function(x){return x.id!==Number(d)});
+        guardar(); render();
+      }
+    } else if(ed){
+      var m = estado.movs.find(function(x){return x.id===Number(ed)});
+      if(!m) return;
+      editId=m.id;
+      $('tipo').value=m.tipo; $('fecha').value=m.fecha; $('monto').value=m.monto; $('detalle').value=m.detalle||'';
+      $('tituloForm').textContent='Editando movimiento';
+      $('btnGuardar').textContent='Guardar cambios';
+      $('btnCancelar').style.display='inline-block';
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+  });
+
+  $('btnPdf').addEventListener('click',function(){ window.print(); });
+
+  $('btnResp').addEventListener('click',function(){
+    var blob = new Blob([JSON.stringify(estado,null,2)],{type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'respaldo-prestamo-'+hoy()+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  $('btnRest').addEventListener('click',function(){ $('fileRest').click(); });
+  $('fileRest').addEventListener('change',function(){
+    var f = this.files[0]; if(!f) return;
+    var r = new FileReader();
+    r.onload = function(){
+      try{
+        var o = JSON.parse(r.result);
+        if(!o || !Array.isArray(o.movs)) throw 0;
+        if(confirm('Esto reemplazará los datos actuales por los del respaldo. ¿Continuar?')){
+          estado = { deudor:o.deudor||'', moneda:o.moneda==='USD'?'USD':'CRC', notaGeneral:o.notaGeneral||'', movs:o.movs };
+          guardar(); render();
+        }
+      }catch(e){ alert('El archivo no es un respaldo válido.'); }
+    };
+    r.readAsText(f);
+    this.value='';
+  });
+
+  cargar(); limpiarForm(); render();
+})();
+</script>
+</body>
+</html>
